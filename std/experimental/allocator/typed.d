@@ -424,4 +424,3 @@ unittest
     assert(a.expandArray(arr, 3));
     assert(a.shrinkArray(arr, 4));
 }
-

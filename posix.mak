@@ -201,9 +201,9 @@ else
 endif
 
 # Other D modules that aren't under std/
-EXTRA_DOCUMENTABLES += $(addprefix etc/c/,curl sqlite3 zlib) $(addprefix	\
-std/c/, fenv locale math process stdarg stddef stdio stdlib string	\
-time wcharh)
+EXTRA_DOCUMENTABLES += $(addprefix etc/c/,curl odbc/sql odbc/sqlext \
+  odbc/sqltypes odbc/sqlucode sqlite3 zlib) $(addprefix std/c/,fenv locale \
+  math process stdarg stddef stdio stdlib string time wcharh)
 EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(addprefix			\
 	std/internal/digest/, sha_SSSE3 ) $(addprefix \
 	std/internal/math/, biguintcore biguintnoasm biguintx86	\
@@ -366,8 +366,11 @@ unittest/%.run : $(ROOT)/unittest/test_runner
 
 # Target for quickly running a single unittest (using static phobos library).
 # For example: "make std/algorithm/mutation.test"
+# The mktemp business is needed so .o files don't clash in concurrent unittesting.
 %.test : %.d $(LIB)
-	$(DMD) $(DFLAGS) -main -unittest $(LIB) -defaultlib= -debuglib= -L-lcurl -cov -run $<
+	T=`mktemp -d /tmp/.dmd-run-test.XXXXXX` && \
+	  $(DMD) -od$$T $(DFLAGS) -main -unittest $(LIB) -defaultlib= -debuglib= -L-lcurl -cov -run $< && \
+	  rm -rf $$T
 
 # Target for quickly unittesting all modules and packages within a package,
 # transitively. For example: "make std/algorithm.test"
