@@ -144,7 +144,7 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
         && hasMember!(Allocator, "owns"))
     ~this()
     {
-        deallocateAll();
+        deallocateAll;
     }
 
     /**
@@ -162,9 +162,7 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
     */
     void[] allocate(size_t s)
     {
-        Node* previous = null;
-        Node* current = root;
-        while (current !is null)
+        for (Node* previous = null, current = root; current !is null; previous = current, current = current.next )
         {
             auto result = current.allocate(s);
             if (result.length == s)
@@ -179,11 +177,6 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
                     root = current;
                 }
                 return result;
-            }
-            else
-            {
-                previous = current;
-                current = current.next;
             }
         }
         // Can't allocate from the current pool. Check if we just added a new
@@ -413,9 +406,7 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
         assert(allocators.length);
         assert(owns(b) == Ternary.yes);
         bool result;
-        Node* current = root;
-        Node* previous = null;
-        while (current !is null)
+        for (Node* current = root, previous = null; current !is null; previous = current, current = current.next)
         {
             if (current.owns(b) == Ternary.yes)
             {
@@ -430,15 +421,13 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
                 }
 				return result;
             }
-            previous = current;
-            current = current.next;
         }
         // Hmmm... should we return this allocator back to the wild? Let's
         // decide if there are TWO empty allocators we can release ONE. This
         // is to avoid thrashing.
         // Note that loop starts from the second element.
-        current = root.next;
-        previous = null;
+        Node* current = root.next;
+        Node* previous = null;
         if (current !is null && current.empty == Ternary.yes && current.next !is null)
         {
             while (current !is null)
@@ -476,11 +465,11 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
                 special = &n;
                 continue;
             }
-            n.a.deallocateAll();
-            n.a.destroy();
+            n.a.deallocateAll;
+            n.a.destroy;
         }
         assert(special || !allocators.ptr);
-        if (special !is null)
+        if (special)
         {
             special.a.deallocateAll();
         }
