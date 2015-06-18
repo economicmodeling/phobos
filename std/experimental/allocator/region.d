@@ -32,10 +32,13 @@ struct Region(ParentAllocator = NullAllocator,
     static assert(minAlign.isGoodStaticAlignment);
     static assert(ParentAllocator.alignment >= minAlign);
 
+    import std.traits : hasMember;
+
     // state {
     /**
     The _parent allocator. Depending on whether $(D ParentAllocator) holds state
-    or not, this is a member variable or an alias for $(D ParentAllocator.it).
+    or not, this is a member variable or an alias for
+    `ParentAllocator.instance`.
     */
     static if (stateSize!ParentAllocator)
     {
@@ -43,7 +46,7 @@ struct Region(ParentAllocator = NullAllocator,
     }
     else
     {
-        alias parent = ParentAllocator.it;
+        alias parent = ParentAllocator.instance;
     }
     private void* _current, _begin, _end;
     // }
@@ -85,10 +88,22 @@ struct Region(ParentAllocator = NullAllocator,
     }
 
     /*
-    The postblit of $(D BasicRegion) is disabled because such objects should not
-    be copied around naively.
+    TODO: The postblit of $(D BasicRegion) is disabled because such objects
+    should not be copied around naively.
     */
     //@disable this(this);
+
+    /**
+    If `ParentAllocator` is not `NullAllocator` and defines `deallocate`, the region defines a destructor that uses `ParentAllocator.delete` to free the
+    memory chunk.
+    */
+    static if (!is(ParentAllocator == NullAllocator)
+        && hasMember!(ParentAllocator, "deallocate"))
+    ~this()
+    {
+        parent.deallocate(_begin[0 .. _end - _begin]);
+    }
+
 
     /**
     Alignment offered.
@@ -596,7 +611,7 @@ version(Posix) struct SbrkRegion(uint minAlign = platformAlignment)
     /**
     Instance shared by all callers.
     */
-    static shared SbrkRegion it;
+    static shared SbrkRegion instance;
 
     /**
     Standard allocator primitives.
@@ -759,7 +774,7 @@ version(Posix) unittest
 
 version(Posix) unittest
 {
-    alias alloc = SbrkRegion!(8).it;
+    alias alloc = SbrkRegion!(8).instance;
     auto a = alloc.alignedAllocate(2001, 4096);
     assert(a.length == 2001);
     auto b = alloc.allocate(2001);
