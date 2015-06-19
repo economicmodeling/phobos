@@ -162,12 +162,16 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
     */
     void[] allocate(size_t s)
     {
+        if (s == 0)
+            return null;
+
         for (Node* previous = null, current = root; current !is null; previous = current, current = current.next )
         {
             auto result = current.allocate(s);
             if (result.length == s)
             {
-                assert(owns(result) == Ternary.yes);
+                static if (hasMember!(Allocator, "owns"))
+                    assert(owns(result) == Ternary.yes);
                 // Bring to front if not already
                 if (root !is current)
                 {
@@ -190,7 +194,8 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
         if (auto a = addAllocator(s))
         {
             auto result = a.allocate(s);
-            assert(result.ptr is null || owns(result) == Ternary.yes);
+            static if (hasMember!(Allocator, "owns"))
+                assert(result.ptr is null || owns(result) == Ternary.yes);
             return result;
         }
         return null;
@@ -283,7 +288,8 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
             moveAllocators(newPlace);
             import core.stdc.string : memcpy;
             memcpy(&allocators[$ - 1].a, &newAlloc, newAlloc.sizeof);
-            assert(allocators[$ - 1].owns(allocators) == Ternary.yes);
+            static if (hasMember!(Allocator, "owns"))
+                assert(allocators[$ - 1].owns(allocators) == Ternary.yes);
         }
         // Insert as new root
         if (root != &allocators[$ - 1])
@@ -381,15 +387,19 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
     static if (hasMember!(Allocator, "reallocate"))
     bool reallocate(ref void[] b, size_t s)
     {
-        // First attempt to reallocate within the existing node
+        // If null, allocate
         if (!b.ptr)
         {
             b = allocate(s);
             return b.length == s;
         }
-        for (Node* current = root; current !is null; current = current.next)
+        // First attempt to reallocate within the existing node
+        static if (hasMember!(Allocator, "owns"))
         {
-            if (current.owns(b) == Ternary.yes) return current.reallocate(b, s);
+            for (Node* current = root; current !is null; current = current.next)
+            {
+                if (current.owns(b) == Ternary.yes) return current.reallocate(b, s);
+            }
         }
         // Failed, but we may find new memory in a new node.
         return .reallocate(this, b, s);
@@ -419,7 +429,7 @@ struct AllocatorList(Factory, BookkeepingAllocator = GCAllocator)
                     current.next = root;
                     root = current;
                 }
-				return result;
+                return result;
             }
         }
         // Hmmm... should we return this allocator back to the wild? Let's
@@ -606,4 +616,11 @@ unittest
     a.allocate(1024 * 4095);
     a.deallocateAll();
     assert(a.empty == Ternary.yes);
+}
+
+unittest
+{
+    // Should not fail when allocating 0 bytes
+    AllocatorList!(n => Region!GCAllocator(1024)) a;
+    assert(a.allocate(0).length == 0);
 }
