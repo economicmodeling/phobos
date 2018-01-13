@@ -5574,9 +5574,19 @@ in
 do
 {
     alias Value = Unqual!(CommonType!(B, E, S));
+
+    version(X86)
+    {
+        static if (isFloatingPoint!Value)
+            alias InternalValue = real;
+        else
+            alias InternalValue = Value;
+    }
+    else alias InternalValue = Value;
+
     static struct Result
     {
-        private Value start, step;
+        private InternalValue start, step;
         private size_t index, count;
 
         this(Value start, Value end, Value step)
@@ -5587,7 +5597,7 @@ do
             this.step = step;
             immutable fcount = (end - start) / step;
             count = to!size_t(fcount);
-            auto pastEnd = start + count * step;
+            InternalValue pastEnd = start + count * step;
             if (step > 0)
             {
                 while (pastEnd < end)
